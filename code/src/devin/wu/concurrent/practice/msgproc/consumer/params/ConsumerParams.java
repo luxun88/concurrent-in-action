@@ -15,8 +15,4 @@ public class ConsumerParams
 		return 5;
 	}
 	
-	public static int getQueueNumberInOneProcessor()
-	{
-		return 3;
-	}
 }

@@ -1,11 +1,12 @@
 package devin.wu.concurrent.practice.msgproc.consumer.processor;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import devin.wu.concurrent.practice.msgproc.consumer.entity.Message;
-import devin.wu.concurrent.practice.msgproc.consumer.params.ConsumerParams;
+import devin.wu.concurrent.practice.msgproc.consumer.service.MessageProcessorIdGenerator;
+import devin.wu.concurrent.practice.msgproc.consumer.service.ProcessorBalancingService;
+import devin.wu.sdk.logger.ConsoleLogger;
 
 /**
  * 
@@ -16,29 +17,59 @@ import devin.wu.concurrent.practice.msgproc.consumer.params.ConsumerParams;
  */
 public class MessageProcessor implements Runnable
 {
-	private final int queueNumber;
-	private List<LinkedBlockingQueue<Message>> queues;
+	private ConsoleLogger logger = ConsoleLogger.createLogger(getClass().getName());
+    
+	private final int id = MessageProcessorIdGenerator.generate();
+	private ProcessorBalancingService balancing = ProcessorBalancingService.getInstance();
+	private LinkedBlockingQueue<Message> queue = new LinkedBlockingQueue<>();
 
-	public MessageProcessor()
+	public int getId()
 	{
-		queueNumber = ConsumerParams.getQueueNumberInOneProcessor();
-		init();
+		return id;
 	}
-
-	private synchronized void init()
+	
+	public void put(Message message)
 	{
-		queues = new ArrayList<>(queueNumber);
-		for (int i = 0; i < queueNumber; i++)
+		try
 		{
-			queues.add(new LinkedBlockingQueue<Message>());
+			queue.put(message);
 		}
+		catch (InterruptedException e)
+		{
+			logger.error("", e);
+		}
+		balancing.onAdded(id, message);
 	}
 
 	@Override
 	public void run()
 	{
-		// TODO Auto-generated method stub
-		
+		while (true)
+		{
+			Message message = null;
+			try
+			{
+				message = queue.take();
+				consumeMessage(message);
+			}
+			catch (InterruptedException e)
+			{
+				logger.error("", e);
+			}
+			balancing.onConsumed(id, message);
+		}
 	}
 
+	private void consumeMessage(Message message)
+	{
+		logger.info("consume message: " + message.toString());
+		try
+		{
+			TimeUnit.MILLISECONDS.sleep(100);
+		}
+		catch (InterruptedException e)
+		{
+			logger.error("", e);
+		}
+	}
 }
